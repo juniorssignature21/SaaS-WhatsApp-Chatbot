@@ -1,0 +1,33 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Inbox{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Inbox</h1><p class="lead">Every WhatsApp conversation. Take over from the AI at any time.</p></div>
+  <div class="row">
+    <form method="get" class="row"><input type="hidden" name="tab" value="{{ tab }}"><input type="search" name="q" value="{{ q }}" placeholder="Search name or number"></form>
+    {% if is_agent %}<a class="btn" href="{% url 'dashboard:new_conversation' %}">New message</a>{% endif %}
+  </div>
+</div>
+<div class="pill-nav">
+  {% for key, label, _ in tabs %}<a href="?tab={{ key }}" class="{% if tab == key %}active{% endif %}">{{ label }}</a>{% endfor %}
+</div>
+<div class="card flush">
+  <table>
+    <thead><tr><th>Customer</th><th>Last message</th><th>Status</th><th>Assigned</th><th>Updated</th></tr></thead>
+    <tbody>
+    {% for c in page %}
+      <tr class="clickable" data-href="{% url 'dashboard:conversation' c.id %}">
+        <td><a href="{% url 'dashboard:conversation' c.id %}"><strong>{{ c.customer.name|default:"Unknown" }}</strong></a><div class="muted mono">+{{ c.customer.phone_number }}</div></td>
+        <td class="muted">{{ c.handoff_reason|default:""|truncatechars:60 }}</td>
+        <td><span class="badge {{ c.status }}">{{ c.get_status_display }}</span></td>
+        <td>{{ c.assigned_agent.email|default:"—" }}</td>
+        <td class="muted">{{ c.last_message_at|timesince }} ago</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="5" class="empty">Nothing here.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "dashboard/_pagination.html" %}
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{% if tool %}{{ tool.name }}{% else %}New tool{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if tool %}{{ tool.name }}{% else %}New tool{% endif %}</h1>
+<p class="lead"><a href="{% url 'dashboard:tools' %}">← All tools</a></p>
+<div class="grid cols-2">
+  <form method="post" class="card">{% csrf_token %}
+    <label>Name</label><input type="text" name="name" class="mono" value="{% if values %}{{ values.name }}{% else %}{{ tool.name }}{% endif %}" placeholder="check_order_status" required pattern="[a-z][a-z0-9_]{0,63}">
+    <div class="help">Lowercase letters, digits and underscores.</div>
+    <label>Description</label><textarea name="description" rows="4" required placeholder="Look up the delivery status of an order by its order number.">{% if values %}{{ values.description }}{% else %}{{ tool.description }}{% endif %}</textarea>
+    <div class="help">The assistant reads this to decide when to call the tool. Be specific.</div>
+    <label>Endpoint URL</label><input type="url" name="endpoint_url" value="{% if values %}{{ values.endpoint_url }}{% else %}{{ tool.endpoint_url }}{% endif %}" required placeholder="https://api.yourshop.com/ai-tools/orders">
+    <div class="row">
+      <div style="flex:1"><label>Method</label><select name="http_method"><option value="POST" {% if tool.http_method == 'POST' or values.http_method == 'POST' %}selected{% endif %}>POST</option><option value="GET" {% if tool.http_method == 'GET' or values.http_method == 'GET' %}selected{% endif %}>GET</option></select></div>
+      <div style="flex:1"><label>Timeout (seconds)</label><input type="number" name="timeout_seconds" min="1" max="30" value="{% if values %}{{ values.timeout_seconds }}{% else %}{{ tool.timeout_seconds|default:10 }}{% endif %}"></div>
+    </div>
+    <label>Input schema (JSON Schema)</label>
+    <textarea name="input_schema" rows="8" class="mono" placeholder='{"type": "object", "properties": {"order_id": {"type": "string", "description": "Order number"}}, "required": ["order_id"]}'>{% if values %}{{ values.input_schema }}{% elif tool.input_schema %}{{ tool.input_schema_json }}{% endif %}</textarea>
+    <label class="check"><input type="checkbox" name="enabled" {% if not tool or tool.enabled %}checked{% endif %}> Enabled</label>
+    <div style="margin-top:12px"><button>Save tool</button></div>
+  </form>
+  {% if tool %}
+  <div class="card">
+    <h2>Signing secret</h2>
+    <p class="muted">Use it to verify <code>X-Tool-Signature</code> on your endpoint.</p>
+    <input type="text" class="mono" readonly value="{{ tool.signing_secret }}">
+    <div class="row" style="margin-top:10px">
+      <form method="post" action="{% url 'dashboard:tool_action' tool.id 'rotate' %}" data-confirm="Rotate the secret? Your endpoint must be updated.">{% csrf_token %}<button class="secondary small">Rotate secret</button></form>
+      <form method="post" action="{% url 'dashboard:tool_action' tool.id 'delete' %}" data-confirm="Delete this tool?">{% csrf_token %}<button class="danger small">Delete tool</button></form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

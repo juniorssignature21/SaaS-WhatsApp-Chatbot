@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.utils.text import slugify
 
-from .models import AuditLog, Business, Membership, Role
+from .models import APIKey, AuditLog, Business, Membership, Role
 
 
 def _unique_slug(name):
@@ -28,12 +28,17 @@ def create_business(owner, name, **fields):
 
 
 def audit(business, actor, action, target=None, request=None, **metadata):
+    from accounts.models import User
+
     ip = None
     if request is not None:
         ip = request.META.get("REMOTE_ADDR")
+        api_key = getattr(request, "auth", None)
+        if isinstance(api_key, APIKey):
+            metadata.setdefault("api_key", api_key.prefix)
     return AuditLog.objects.create(
         business=business,
-        actor=actor if getattr(actor, "is_authenticated", False) else None,
+        actor=actor if isinstance(actor, User) else None,
         action=action,
         target_type=type(target).__name__ if target is not None else "",
         target_id=str(getattr(target, "pk", "") or ""),

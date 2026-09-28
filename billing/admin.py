@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Plan, Subscription, UsageRecord
+from .models import Payment, Plan, Subscription, UsageRecord
 
 
 @admin.register(Plan)
@@ -20,3 +20,10 @@ class UsageRecordAdmin(admin.ModelAdmin):
         "business", "period", "conversations", "messages_in", "ai_responses", "input_tokens", "output_tokens",
     ]
     list_filter = ["period"]
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ["reference", "business", "plan", "amount", "currency", "status", "paid_at"]
+    list_filter = ["status"]
+    search_fields = ["reference"]

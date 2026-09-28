@@ -1,0 +1,10 @@
+{% extends has_business|yesno:"dashboard/base.html,dashboard/auth/base.html" %}
+{% block title %}New business{% endblock %}
+{% block content %}
+<h1>Create a business</h1>
+<p class="muted">Each business has its own WhatsApp numbers, assistant, knowledge, team and billing.</p>
+<form method="post" class="card" style="max-width:420px">{% csrf_token %}
+  <label for="name">Business name</label><input id="name" type="text" name="name" required autofocus>
+  <div style="margin-top:16px"><button type="submit">Create</button></div>
+</form>
+{% endblock %}

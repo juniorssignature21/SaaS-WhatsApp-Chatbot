@@ -1,0 +1,58 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Overview</h1><p class="lead">{{ usage.period|date:"F Y" }} · {{ business.name }}</p></div>
+  {% if needs_human %}<a class="btn" href="{% url 'dashboard:inbox' %}?tab=HUMAN_HANDLING">{{ needs_human }} waiting for a human</a>{% endif %}
+</div>
+
+{% if not setup_done %}
+<div class="card" style="margin-bottom:16px">
+  <h2>Get set up</h2>
+  <ol class="checklist">
+    {% for label, done, url in checklist %}
+      <li class="{% if done %}done{% endif %}"><a href="{% url url %}">{{ label }}</a></li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
+
+<div class="grid cols-4">
+  <div class="card stat"><div class="value">{{ usage.conversations }}</div><div class="label">Conversations this month</div></div>
+  <div class="card stat"><div class="value">{{ usage.ai_responses }}</div><div class="label">AI replies</div></div>
+  <div class="card stat"><div class="value">{{ usage.human_responses }}</div><div class="label">Human replies</div></div>
+  <div class="card stat"><div class="value">{{ usage.escalations }}</div><div class="label">Handoffs to humans</div></div>
+  <div class="card stat"><div class="value">{{ usage.messages_in }}</div><div class="label">Messages received</div></div>
+  <div class="card stat"><div class="value">{{ usage.resolved_conversations }}</div><div class="label">Resolved</div></div>
+  <div class="card stat"><div class="value">{% if avg_first_response is not None %}{{ avg_first_response|floatformat:0 }}s{% else %}–{% endif %}</div><div class="label">Avg. first response (30 days)</div></div>
+  <div class="card stat"><div class="value">{{ usage.tool_calls }}</div><div class="label">Tool calls</div></div>
+</div>
+
+<div class="grid cols-2" style="margin-top:16px">
+  <div class="card flush">
+    <div style="padding:14px 16px"><h2 style="margin:0">Recent conversations</h2></div>
+    <table>
+      {% for c in recent %}
+        <tr class="clickable" data-href="{% url 'dashboard:conversation' c.id %}">
+          <td><strong>{{ c.customer.name|default:c.customer.phone_number }}</strong><div class="muted">{{ c.last_message_at|timesince }} ago</div></td>
+          <td style="text-align:right"><span class="badge {{ c.status }}">{{ c.get_status_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td class="empty">No conversations yet. Once your WhatsApp number is connected, customer chats appear here.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h2>Plan &amp; usage</h2>
+    {% if subscription %}
+      <p><strong>{{ subscription.plan.name }}</strong> <span class="badge {{ subscription.status }}">{{ subscription.get_status_display }}</span></p>
+      {% if subscription.status == 'TRIALING' and subscription.trial_ends_at %}<p class="muted">Trial ends {{ subscription.trial_ends_at|date:"j M Y" }}.</p>{% endif %}
+      <p>AI replies: {{ usage.ai_responses }}{% if subscription.plan.monthly_ai_responses %} / {{ subscription.plan.monthly_ai_responses }}{% endif %}</p>
+      <p class="muted">Tokens: {{ usage.input_tokens }} in ({{ usage.cache_read_tokens }} cached) · {{ usage.output_tokens }} out</p>
+      {% if is_admin %}<a href="{% url 'dashboard:billing' %}">Manage billing →</a>{% endif %}
+    {% endif %}
+    <h3>Conversations by status</h3>
+    {% for status, n in counts.items %}<span class="badge {{ status }}">{{ status|title }}: {{ n }}</span> {% empty %}<span class="muted">None yet.</span>{% endfor %}
+  </div>
+</div>
+{% endblock %}

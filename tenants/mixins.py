@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from .context import resolve_membership
+from .context import acting_user, resolve_membership
 from .permissions import IsBusinessMember
 
 
@@ -17,6 +17,11 @@ class TenantMixin:
     @property
     def business(self):
         return self.membership.business
+
+    @property
+    def actor(self):
+        """The human performing the action (None for API-key requests)."""
+        return acting_user(self.request)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

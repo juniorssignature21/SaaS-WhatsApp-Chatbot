@@ -19,14 +19,14 @@ class ToolViewSet(TenantModelViewSet):
 
     def perform_create(self, serializer):
         tool = serializer.save(business=self.business)
-        audit(self.business, self.request.user, "tool.created", tool, self.request, name=tool.name)
+        audit(self.business, self.actor, "tool.created", tool, self.request, name=tool.name)
 
     def perform_update(self, serializer):
         tool = serializer.save()
-        audit(self.business, self.request.user, "tool.updated", tool, self.request, name=tool.name)
+        audit(self.business, self.actor, "tool.updated", tool, self.request, name=tool.name)
 
     def perform_destroy(self, instance):
-        audit(self.business, self.request.user, "tool.deleted", instance, self.request, name=instance.name)
+        audit(self.business, self.actor, "tool.deleted", instance, self.request, name=instance.name)
         instance.delete()
 
     @action(detail=True, methods=["post"], url_path="rotate-secret")
@@ -34,5 +34,5 @@ class ToolViewSet(TenantModelViewSet):
         tool = self.get_object()
         tool.signing_secret = generate_signing_secret()
         tool.save(update_fields=["signing_secret", "updated_at"])
-        audit(self.business, request.user, "tool.secret_rotated", tool, request)
+        audit(self.business, self.actor, "tool.secret_rotated", tool, request)
         return Response(ToolSerializer(tool, context=self.get_serializer_context()).data)

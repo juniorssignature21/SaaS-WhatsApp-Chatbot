@@ -1,0 +1,21 @@
+{% for m in thread %}
+  {% if m.role == 'SYSTEM' or m.role == 'TOOL' %}
+    <div class="note {{ m.role }}">{% if m.role == 'TOOL' %}🔧 {% endif %}{{ m.content }} · {{ m.created_at|time:"H:i" }}</div>
+  {% else %}
+    <div class="bubble {{ m.role }}">
+      {% if m.media %}
+        {% if m.media_mime_type|slice:":6" == "image/" %}<a href="{% url 'dashboard:message_media' m.id %}" target="_blank" rel="noopener"><img src="{% url 'dashboard:message_media' m.id %}" alt="Image from customer"></a>
+        {% elif m.media_mime_type|slice:":6" == "audio/" %}<audio controls src="{% url 'dashboard:message_media' m.id %}"></audio>
+        {% else %}<a href="{% url 'dashboard:message_media' m.id %}" target="_blank" rel="noopener">📎 Open attachment</a>{% endif %}
+      {% endif %}
+      <div class="text">{{ m.content }}</div>
+      <div class="meta">
+        {% if m.role == 'ASSISTANT' %}<span>AI</span>{% elif m.role == 'AGENT' %}<span>{{ m.sender.email|default:"Team" }}</span>{% endif %}
+        {% if m.message_type == 'template' %}<span>template</span>{% endif %}
+        <span>{{ m.created_at|date:"j M H:i" }}</span>
+        {% if m.direction == 'OUTBOUND' %}<span data-status-for="{{ m.id }}">{{ m.status|lower }}</span>{% endif %}
+      </div>
+      {% if m.status == 'FAILED' and m.error %}<div class="help" style="color:var(--danger)">Not delivered: {{ m.error }}</div>{% endif %}
+    </div>
+  {% endif %}
+{% endfor %}

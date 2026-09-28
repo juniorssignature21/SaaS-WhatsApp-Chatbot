@@ -1,0 +1,69 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Dashboard{% endblock %} · {{ brand_name|default:platform_name }}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 22l2-5a7 7 0 1 1 3 3z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{% static 'dashboard/app.css' %}">
+  {% if brand_color %}<style>:root { --brand: {{ brand_color }}; }</style>{% endif %}
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="dot"></span>{{ brand_name }}
+      <button type="button" class="menu-toggle secondary small" aria-expanded="false" onclick="var s=this.closest('.sidebar');s.classList.toggle('open');this.setAttribute('aria-expanded', s.classList.contains('open'))">Menu{% if unread_notifications %} · {{ unread_notifications }}{% endif %}</button>
+    </div>
+    {% if all_memberships|length > 1 %}
+      <form method="post" id="switch-form" action="">{% csrf_token %}
+        <select aria-label="Switch business" onchange="this.form.action=this.value; this.form.submit()">
+          {% for m in all_memberships %}
+            <option value="{% url 'dashboard:switch_business' m.business_id %}" {% if m.business_id == business.id %}selected{% endif %}>{{ m.business.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% else %}
+      <div class="muted" style="padding: 0 10px 8px; color:#94a3b8">{{ business.name }}</div>
+    {% endif %}
+    {% with u=request.resolver_match.url_name %}
+    <nav>
+      <a href="{% url 'dashboard:overview' %}" class="{% if u == 'overview' %}active{% endif %}">Overview</a>
+      <a href="{% url 'dashboard:inbox' %}" class="{% if u == 'inbox' or u == 'conversation' or u == 'new_conversation' %}active{% endif %}">Inbox</a>
+      <a href="{% url 'dashboard:customers' %}" class="{% if u == 'customers' or u == 'customer' %}active{% endif %}">Customers</a>
+      <a href="{% url 'dashboard:notifications' %}" class="{% if u == 'notifications' %}active{% endif %}">Notifications {% if unread_notifications %}<span class="badge warn">{{ unread_notifications }}</span>{% endif %}</a>
+      <div class="section">Assistant</div>
+      <a href="{% url 'dashboard:bot' %}" class="{% if u == 'bot' %}active{% endif %}">Settings</a>
+      <a href="{% url 'dashboard:bot_playground' %}" class="{% if u == 'bot_playground' %}active{% endif %}">Playground</a>
+      <a href="{% url 'dashboard:knowledge' %}" class="{% if u == 'knowledge' %}active{% endif %}">Knowledge</a>
+      {% if is_admin %}<a href="{% url 'dashboard:tools' %}" class="{% if u == 'tools' or u == 'tool_new' or u == 'tool_edit' %}active{% endif %}">Tools</a>{% endif %}
+      <div class="section">Business</div>
+      {% if is_admin %}<a href="{% url 'dashboard:whatsapp' %}" class="{% if u == 'whatsapp' %}active{% endif %}">WhatsApp</a>{% endif %}
+      <a href="{% url 'dashboard:team' %}" class="{% if u == 'team' %}active{% endif %}">Team</a>
+      {% if is_admin %}
+        <a href="{% url 'dashboard:billing' %}" class="{% if u == 'billing' %}active{% endif %}">Billing</a>
+        <a href="{% url 'dashboard:settings' %}" class="{% if u == 'settings' %}active{% endif %}">Settings &amp; API</a>
+        <a href="{% url 'dashboard:audit' %}" class="{% if u == 'audit' %}active{% endif %}">Audit log</a>
+      {% endif %}
+      <div class="section">{{ request.user.email }}</div>
+      <a href="{% url 'dashboard:account' %}" class="{% if u == 'account' or u == 'mfa_setup' %}active{% endif %}">My account</a>
+      <a href="{% url 'dashboard:create_business' %}">New business</a>
+      <form method="post" action="{% url 'dashboard:logout' %}">{% csrf_token %}
+        <button type="submit" class="secondary small" style="margin: 8px 10px; background: transparent; color: #cbd5e1; border-color: #334155">Sign out</button>
+      </form>
+    </nav>
+    {% endwith %}
+  </aside>
+  <main class="main">
+    {% if not request.user.email_verified %}
+      <div class="notice">Please verify your email address. <a href="{% url 'dashboard:account' %}">Resend the link</a>.</div>
+    {% endif %}
+    {% if business.subscription.status == 'PAST_DUE' or business.subscription.status == 'CANCELED' %}
+      <div class="notice">Your subscription is inactive, so the assistant is paused. {% if is_admin %}<a href="{% url 'dashboard:billing' %}">Choose a plan</a>.{% endif %}</div>
+    {% endif %}
+    {% include "dashboard/_messages_flash.html" %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="{% static 'dashboard/app.js' %}"></script>
+</body>
+</html>

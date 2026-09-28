@@ -29,6 +29,11 @@ services:
     <<: *app
     command: celery -A config worker -Q knowledge -l info --concurrency 2
 
+  # Scheduled jobs: auto-resolve idle chats, expire trials/unpaid plans, sync templates.
+  beat:
+    <<: *app
+    command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
+
   db:
     image: pgvector/pgvector:pg16
     environment:

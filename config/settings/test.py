@@ -12,7 +12,17 @@ WHATSAPP_VERIFY_TOKEN = "test-verify-token"
 WHATSAPP_APP_SECRET = "test-app-secret"
 CHATBOT_LLM_PROVIDER = "fake"
 KNOWLEDGE_EMBEDDING_PROVIDER = "hashing"
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+PAYSTACK_SECRET_KEY = "sk_test_paystack"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 
-REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}  # noqa: F405
+REST_FRAMEWORK = {
+    **REST_FRAMEWORK,  # noqa: F405
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {"anon": None, "user": None, "auth": "10000/min", "playground": "10000/min"},
+}
 
 LOGGING["root"]["level"] = "ERROR"  # noqa: F405

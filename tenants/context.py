@@ -7,7 +7,7 @@ user is already a member of.
 
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
-from .models import Business, Membership
+from .models import APIKey, Business, Membership
 
 BUSINESS_HEADER = "HTTP_X_BUSINESS_ID"
 
@@ -19,6 +19,11 @@ def resolve_membership(request):
     user = request.user
     if not user or not user.is_authenticated:
         raise PermissionDenied("Authentication required.")
+
+    if isinstance(getattr(request, "auth", None), APIKey):
+        membership = _api_key_membership(request, request.auth)
+        request._tenant_membership = membership
+        return membership
 
     memberships = Membership.objects.select_related("business").filter(user=user)
     selector = request.META.get(BUSINESS_HEADER, "").strip()
@@ -41,3 +46,24 @@ def resolve_membership(request):
 
     request._tenant_membership = membership
     return membership
+
+
+def _api_key_membership(request, key):
+    from billing.services import has_feature
+
+    selector = request.META.get(BUSINESS_HEADER, "").strip()
+    if selector and selector not in {str(key.business_id), key.business.slug}:
+        raise NotFound("Business not found.")
+    if key.business.status != Business.Status.ACTIVE:
+        raise PermissionDenied("This business is suspended.")
+    if not has_feature(key.business, "api_access"):
+        raise PermissionDenied("API access is not included in your plan.")
+    # Unsaved membership: the key acts with its own role inside its own business only.
+    return Membership(business=key.business, role=key.role)
+
+
+def acting_user(request):
+    """The human user behind a request, or None for API-key requests."""
+    from accounts.models import User
+
+    return request.user if isinstance(request.user, User) else None

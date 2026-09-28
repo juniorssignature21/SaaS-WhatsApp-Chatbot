@@ -2,6 +2,8 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 
+from common.fields import EncryptedTextField
+
 
 class UserManager(BaseUserManager):
     use_in_migrations = True
@@ -37,6 +39,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
+
+    # Two-factor authentication (TOTP authenticator app).
+    mfa_enabled = models.BooleanField(default=False)
+    mfa_secret = EncryptedTextField(blank=True)
+    mfa_last_counter = models.BigIntegerField(null=True, blank=True, help_text="Prevents code replay.")
+    mfa_recovery_codes = models.JSONField(default=list, blank=True, help_text="SHA-256 hashes of unused codes.")
 
     objects = UserManager()
 

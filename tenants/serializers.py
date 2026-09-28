@@ -2,13 +2,14 @@ from rest_framework import serializers
 
 from accounts.models import User
 
-from .models import AuditLog, Business, Membership, Role
+from .models import APIKey, AuditLog, Business, Membership, Role
 
 
 class BusinessSerializer(serializers.ModelSerializer):
     class Meta:
         model = Business
-        fields = ["id", "name", "slug", "email", "phone", "timezone", "status", "created_at"]
+        fields = ["id", "name", "slug", "email", "phone", "timezone", "status", "brand_name", "brand_color",
+                  "created_at"]
         read_only_fields = ["id", "slug", "status", "created_at"]
 
 
@@ -18,8 +19,8 @@ class MembershipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Membership
-        fields = ["id", "email", "full_name", "role", "created_at"]
-        read_only_fields = ["id", "email", "full_name", "created_at"]
+        fields = ["id", "email", "full_name", "role", "notify_by_email", "created_at"]
+        read_only_fields = ["id", "email", "full_name", "notify_by_email", "created_at"]
 
 
 class InviteMemberSerializer(serializers.Serializer):
@@ -40,3 +41,10 @@ class AuditLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuditLog
         fields = ["id", "action", "actor_email", "target_type", "target_id", "metadata", "ip_address", "created_at"]
+
+
+class APIKeySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = APIKey
+        fields = ["id", "name", "prefix", "role", "created_at", "last_used_at"]
+        read_only_fields = ["id", "prefix", "created_at", "last_used_at"]

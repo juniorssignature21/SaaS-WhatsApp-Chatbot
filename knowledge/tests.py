@@ -63,3 +63,30 @@ class KnowledgeApiTests(TestCase):
         response = self.client.post("/api/v1/knowledge/documents/",
                                     {"title": "x", "source_type": "FILE", "file": upload})
         self.assertEqual(response.status_code, 400)
+
+
+class CrawlerTests(TestCase):
+    def test_crawls_same_site_respecting_robots(self):
+        from unittest import mock
+
+        from .crawler import crawl
+
+        pages = {
+            "https://shop.example/robots.txt": ("text/plain", "User-agent: *\nDisallow: /private"),
+            "https://shop.example/": ("text/html", '<h1>Home</h1><a href="/faq">FAQ</a><a href="/private/x">P</a>'
+                                                   '<a href="https://other.example/">Ext</a><a href="/logo.png">L</a>'),
+            "https://shop.example/faq": ("text/html", "<p>We deliver in Lagos.</p><a href='/'>Home</a>"),
+        }
+
+        def fake_fetch(url):
+            if url not in pages:
+                raise AssertionError(f"unexpected fetch {url}")
+            content_type, body = pages[url]
+            return url, mock.Mock(text=body, headers={"Content-Type": content_type})
+
+        with mock.patch("knowledge.crawler.fetch", side_effect=fake_fetch), \
+             mock.patch("knowledge.loaders.fetch", side_effect=fake_fetch):
+            text = crawl("https://shop.example/", max_pages=10)
+        self.assertIn("Page: https://shop.example/faq", text)
+        self.assertIn("We deliver in Lagos.", text)
+        self.assertNotIn("private", text.lower().split("page:")[-1])

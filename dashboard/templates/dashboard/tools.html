@@ -1,0 +1,30 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Tools{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Tools</h1><p class="lead">Let the assistant look things up and take actions in your own systems: orders, bookings, payments.</p></div>
+  {% if tools_available %}<a class="btn" href="{% url 'dashboard:tool_new' %}">Add tool</a>{% endif %}
+</div>
+{% if not tools_available %}<div class="notice">Custom tools are available on the Business plan and above. <a href="{% url 'dashboard:billing' %}">Upgrade</a>.</div>{% endif %}
+<div class="card flush" style="margin-bottom:16px">
+  <table>
+    <thead><tr><th>Name</th><th>Endpoint</th><th>Status</th></tr></thead>
+    {% for t in tools %}
+      <tr class="clickable" data-href="{% url 'dashboard:tool_edit' t.id %}"><td><a class="mono" href="{% url 'dashboard:tool_edit' t.id %}">{{ t.name }}</a><div class="muted">{{ t.description|truncatechars:90 }}</div></td><td class="mono muted">{{ t.http_method }} {{ t.endpoint_url|truncatechars:60 }}</td><td>{% if t.enabled %}<span class="badge ok">enabled</span>{% else %}<span class="badge DISABLED">disabled</span>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="3" class="empty">No custom tools yet.</td></tr>{% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h2>Built-in tools</h2>
+  <p>Always available: {% for b in builtins %}<code>{{ b }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}. Handoff can be switched off in assistant settings.</p>
+  <h3>How custom tools are called</h3>
+<pre>POST &lt;your endpoint&gt;
+X-Tool-Timestamp: 1760000000
+X-Tool-Signature: sha256=HMAC_SHA256(signing_secret, "&lt;timestamp&gt;." + raw_body)
+
+{"tool": "check_order_status", "input": {"order_id": "1045"},
+ "context": {"business_id": {{ business.id }}, "conversation_id": 7,
+             "customer": {"phone_number": "234...", "name": "Ada", "external_id": ""}}}</pre>
+  <p class="muted">Respond with JSON or text within the timeout; the assistant reads it and answers the customer. Verify the signature and reject timestamps older than 5 minutes.</p>
+</div>
+{% endblock %}

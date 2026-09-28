@@ -1,0 +1,51 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<h1>Billing</h1>
+<p class="lead">
+  {{ subscription.plan.name }} plan · <span class="badge {{ subscription.status }}">{{ subscription.get_status_display }}</span>
+  {% if subscription.status == 'TRIALING' and subscription.trial_ends_at %} · trial ends {{ subscription.trial_ends_at|date:"j M Y" }}{% endif %}
+  {% if subscription.current_period_end %} · {% if subscription.cancel_at_period_end %}ends{% else %}renews{% endif %} {{ subscription.current_period_end|date:"j M Y" }}{% endif %}
+</p>
+{% if not payments_enabled %}<div class="notice">Online payments are not configured on this platform yet. Contact support to change plans.</div>{% endif %}
+
+<div class="plans">
+  {% for plan in plans %}
+    <div class="card plan {% if plan.id == subscription.plan_id %}current{% endif %}">
+      <h2>{{ plan.name }}</h2>
+      <div class="price">{% if plan.price %}{{ plan.currency }} {{ plan.price|floatformat:"0g" }}<span class="muted" style="font-size:13px">/{{ plan.interval_days }} days</span>{% else %}Contact us{% endif %}</div>
+      <ul>
+        <li>{{ plan.monthly_ai_responses|default:"Unlimited" }} AI replies / month</li>
+        <li>{{ plan.max_whatsapp_numbers|default:"Unlimited" }} WhatsApp number{{ plan.max_whatsapp_numbers|pluralize }}</li>
+        <li>{{ plan.max_team_members|default:"Unlimited" }} team members</li>
+        <li>{{ plan.max_knowledge_documents|default:"Unlimited" }} knowledge documents</li>
+        {% if plan.features.tools %}<li>Custom tools &amp; integrations</li>{% endif %}
+        {% if plan.features.api_access %}<li>API access</li>{% endif %}
+      </ul>
+      {% if plan.id == subscription.plan_id and subscription.status == 'ACTIVE' %}
+        <span class="badge ok">Current plan</span>
+      {% elif is_owner and payments_enabled and plan.price %}
+        <form method="post" action="{% url 'dashboard:billing_checkout' plan.code %}">{% csrf_token %}<button>{% if plan.id == subscription.plan_id %}Pay now{% else %}Switch to {{ plan.name }}{% endif %}</button></form>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="grid cols-2" style="margin-top:16px">
+  <div class="card">
+    <h2>This month</h2>
+    <p>Conversations: {{ usage.conversations }}{% if subscription.plan.monthly_conversations %} / {{ subscription.plan.monthly_conversations }}{% endif %}</p>
+    <p>AI replies: {{ usage.ai_responses }}{% if subscription.plan.monthly_ai_responses %} / {{ subscription.plan.monthly_ai_responses }}{% endif %}</p>
+    <p class="muted">When the AI reply limit is reached, new chats go to your team instead.</p>
+    {% if is_owner and subscription.status == 'ACTIVE' and not subscription.cancel_at_period_end %}
+      <form method="post" action="{% url 'dashboard:billing_cancel' %}" data-confirm="Cancel renewal? The plan stays active until the end of the period.">{% csrf_token %}<button class="danger small">Cancel renewal</button></form>
+    {% endif %}
+  </div>
+  <div class="card flush">
+    <div style="padding:14px 16px"><h2 style="margin:0">Payments</h2></div>
+    <table>{% for p in payments %}
+      <tr><td>{{ p.created_at|date:"j M Y" }}</td><td>{{ p.plan.name|default:"—" }}</td><td>{{ p.currency }} {{ p.amount|floatformat:"2g" }}</td><td><span class="badge {{ p.status }}">{{ p.get_status_display }}</span></td></tr>
+    {% empty %}<tr><td class="empty">No payments yet.</td></tr>{% endfor %}</table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ conv.customer.name|default:conv.customer.phone_number }}{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1>{{ conv.customer.name|default:"Unknown customer" }}</h1>
+    <p class="lead"><span class="mono">+{{ conv.customer.phone_number }}</span> · <span class="badge {{ conv.status }}" data-conversation-status="{{ conv.status }}">{{ conv.get_status_display }}</span>
+      {% if conv.assigned_agent %} · assigned to {{ conv.assigned_agent.email }}{% endif %}</p>
+  </div>
+  {% if is_agent %}
+  <div class="row">
+    {% if conv.status == 'HUMAN_HANDLING' %}
+      <form method="post" action="{% url 'dashboard:conversation_action' conv.id 'return' %}" class="inline">{% csrf_token %}<button class="secondary">Return to AI</button></form>
+    {% elif conv.ai_enabled %}
+      <form method="post" action="{% url 'dashboard:conversation_action' conv.id 'takeover' %}" class="inline">{% csrf_token %}<button class="secondary">Take over</button></form>
+    {% endif %}
+    {% if conv.status != 'RESOLVED' and conv.status != 'CLOSED' %}
+      <form method="post" action="{% url 'dashboard:conversation_action' conv.id 'resolve' %}" class="inline">{% csrf_token %}<button>Resolve</button></form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="chat-layout">
+  <div>
+    <div class="thread" data-poll-url="{% url 'dashboard:conversation_poll' conv.id %}" data-last-id="{{ last_id }}">
+      {% include "dashboard/_messages.html" %}
+    </div>
+    {% if is_agent %}
+      {% if window_open %}
+        <form method="post" action="{% url 'dashboard:conversation_action' conv.id 'reply' %}" class="composer">{% csrf_token %}
+          <textarea name="content" placeholder="Reply as {{ request.user.email }} (Ctrl+Enter to send). Replying pauses the AI." data-submit-on-enter maxlength="4096" required></textarea>
+          <button type="submit">Send</button>
+        </form>
+      {% else %}
+        <div class="notice" style="margin-top:10px">It's been more than 24 hours since the customer's last message, so WhatsApp only allows approved templates. Send one below.</div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Customer</h2>
+      <p>{{ conv.customer.email|default:"No email" }}</p>
+      <a href="{% url 'dashboard:customer' conv.customer.id %}">View profile →</a>
+      {% if history %}<h3>Earlier conversations</h3>
+        {% for h in history %}<div><a href="{% url 'dashboard:conversation' h.id %}">{{ h.started_at|date:"j M Y" }}</a> <span class="badge {{ h.status }}">{{ h.get_status_display }}</span></div>{% endfor %}
+      {% endif %}
+    </div>
+    {% if is_agent %}
+    <div class="card">
+      <h2>Assign</h2>
+      <form method="post" action="{% url 'dashboard:conversation_action' conv.id 'assign' %}">{% csrf_token %}
+        <select name="user">{% for m in agents %}<option value="{{ m.user_id }}" {% if conv.assigned_agent_id == m.user_id %}selected{% endif %}>{{ m.user.email }}</option>{% endfor %}</select>
+        <div style="margin-top:8px"><button class="secondary small">Assign</button></div>
+      </form>
+    </div>
+    {% if conv.channel == 'WHATSAPP' %}
+    <div class="card">
+      <h2>Send a template</h2>
+      {% if templates %}
+      <form method="post" action="{% url 'dashboard:conversation_action' conv.id 'template' %}">{% csrf_token %}
+        <select name="template" data-template-select="tpl-params" required>
+          {% for t in templates %}<option value="{{ t.id }}" data-params="{{ t.parameter_count }}" data-body="{{ t.body_text }}">{{ t.name }} ({{ t.language }})</option>{% endfor %}
+        </select>
+        <div id="tpl-params"></div>
+        <div style="margin-top:8px"><button class="secondary small">Send template</button></div>
+      </form>
+      {% else %}<p class="muted">No approved templates. {% if is_admin %}<a href="{% url 'dashboard:whatsapp' %}">Sync templates</a>{% endif %}</p>{% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

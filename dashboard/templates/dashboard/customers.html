@@ -1,0 +1,23 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Customers{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Customers</h1><p class="lead">People who have chatted with {{ business.name }}.</p></div>
+  <form method="get"><input type="search" name="q" value="{{ q }}" placeholder="Search"></form>
+</div>
+<div class="card flush">
+  <table>
+    <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Conversations</th><th>Last seen</th></tr></thead>
+    <tbody>
+    {% for c in page %}
+      <tr class="clickable" data-href="{% url 'dashboard:customer' c.id %}">
+        <td><a href="{% url 'dashboard:customer' c.id %}">{{ c.name|default:"Unknown" }}</a></td>
+        <td class="mono">+{{ c.phone_number }}</td><td>{{ c.email|default:"—" }}</td>
+        <td>{{ c.conversation_count }}</td><td class="muted">{{ c.updated_at|timesince }} ago</td>
+      </tr>
+    {% empty %}<tr><td colspan="5" class="empty">No customers yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% include "dashboard/_pagination.html" %}
+{% endblock %}

@@ -5,6 +5,7 @@ from . import views
 
 router = DefaultRouter()
 router.register("team", views.TeamViewSet, basename="team")
+router.register("api-keys", views.APIKeyViewSet, basename="api-key")
 
 urlpatterns = [
     path("businesses/", views.MyBusinessesView.as_view(), name="my-businesses"),

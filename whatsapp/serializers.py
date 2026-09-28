@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import WhatsAppAccount
+from .models import MessageTemplate, WhatsAppAccount
 
 
 class WhatsAppAccountSerializer(serializers.ModelSerializer):
@@ -31,3 +31,14 @@ class WhatsAppAccountSerializer(serializers.ModelSerializer):
         if qs.exists():
             raise serializers.ValidationError("This phone number is already connected.")
         return value
+
+
+class MessageTemplateSerializer(serializers.ModelSerializer):
+    body_text = serializers.CharField(read_only=True)
+    parameter_count = serializers.IntegerField(read_only=True)
+    is_sendable = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = MessageTemplate
+        fields = ["id", "whatsapp_account", "name", "language", "category", "status", "body_text",
+                  "parameter_count", "is_sendable"]

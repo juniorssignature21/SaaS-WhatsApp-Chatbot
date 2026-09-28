@@ -4,6 +4,7 @@ import csv
 import io
 import re
 from html.parser import HTMLParser
+from urllib.parse import urljoin
 
 import requests
 from django.conf import settings
@@ -75,9 +76,13 @@ class _TextExtractor(HTMLParser):
 
     def __init__(self):
         super().__init__()
-        self.parts, self._skip_depth = [], 0
+        self.parts, self.links, self._skip_depth = [], [], 0
 
     def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            href = dict(attrs).get("href")
+            if href:
+                self.links.append(href)
         if tag in self.SKIP:
             self._skip_depth += 1
         elif tag in self.BLOCK:
@@ -92,22 +97,39 @@ class _TextExtractor(HTMLParser):
             self.parts.append(data)
 
 
-def load_url(url):
-    assert_public_url(url)
-    try:
-        response = requests.get(
-            url, timeout=15, allow_redirects=False,
-            headers={"User-Agent": "WhatsAppAISaaS-KnowledgeBot/1.0"},
-        )
-    except requests.RequestException as exc:
-        raise LoaderError(f"Could not fetch URL: {exc.__class__.__name__}") from exc
-    if response.status_code != 200:
-        raise LoaderError(f"URL returned HTTP {response.status_code}.")
-    if len(response.content) > settings.KNOWLEDGE_MAX_UPLOAD_BYTES:
-        raise LoaderError("Page is too large.")
-    content_type = response.headers.get("Content-Type", "")
-    if "html" not in content_type:
-        return response.text
+USER_AGENT = "WhatsAppAISaaS-KnowledgeBot/1.0"
+MAX_REDIRECTS = 3
+
+
+def fetch(url):
+    """GET a public URL, following a few redirects with an SSRF check on every hop."""
+    for _ in range(MAX_REDIRECTS + 1):
+        assert_public_url(url)
+        try:
+            response = requests.get(url, timeout=15, allow_redirects=False, headers={"User-Agent": USER_AGENT})
+        except requests.RequestException as exc:
+            raise LoaderError(f"Could not fetch URL: {exc.__class__.__name__}") from exc
+        if response.status_code in {301, 302, 303, 307, 308} and response.headers.get("Location"):
+            url = urljoin(url, response.headers["Location"])
+            continue
+        if response.status_code != 200:
+            raise LoaderError(f"URL returned HTTP {response.status_code}.")
+        if len(response.content) > settings.KNOWLEDGE_MAX_UPLOAD_BYTES:
+            raise LoaderError("Page is too large.")
+        return url, response
+    raise LoaderError("Too many redirects.")
+
+
+def fetch_page(url):
+    """Returns (final_url, text, links). Links are absolute URLs."""
+    final_url, response = fetch(url)
+    if "html" not in response.headers.get("Content-Type", ""):
+        return final_url, response.text, []
     parser = _TextExtractor()
     parser.feed(response.text)
-    return re.sub(r"\n\s*\n+", "\n\n", "".join(parser.parts)).strip()
+    text = re.sub(r"\n\s*\n+", "\n\n", "".join(parser.parts)).strip()
+    return final_url, text, [urljoin(final_url, link) for link in parser.links]
+
+
+def load_url(url):
+    return fetch_page(url)[1]

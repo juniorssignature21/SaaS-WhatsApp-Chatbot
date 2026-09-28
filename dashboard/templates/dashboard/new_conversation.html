@@ -1,0 +1,22 @@
+{% extends "dashboard/base.html" %}
+{% block title %}New message{% endblock %}
+{% block content %}
+<h1>Message a customer</h1>
+<p class="lead">WhatsApp requires an approved template to start a conversation. When the customer replies, you can chat freely for 24 hours.</p>
+{% if not accounts or not templates %}
+  <div class="notice">You need a connected number and at least one approved template. {% if is_admin %}<a href="{% url 'dashboard:whatsapp' %}">Set them up</a>.{% endif %}</div>
+{% else %}
+<form method="post" class="card" style="max-width:560px">{% csrf_token %}
+  <label>From number</label>
+  <select name="account">{% for a in accounts %}<option value="{{ a.id }}">{{ a.display_name|default:a.phone_number }}</option>{% endfor %}</select>
+  <label>Customer phone (international format)</label><input type="tel" name="phone" placeholder="+2348012345678" required>
+  <label>Customer name (optional)</label><input type="text" name="name">
+  <label>Template</label>
+  <select name="template" data-template-select="new-params" required>
+    {% for t in templates %}<option value="{{ t.id }}" data-params="{{ t.parameter_count }}" data-body="{{ t.body_text }}">{{ t.name }} ({{ t.language }}) – {{ t.whatsapp_account.phone_number }}</option>{% endfor %}
+  </select>
+  <div id="new-params"></div>
+  <div style="margin-top:16px"><button type="submit">Send</button></div>
+</form>
+{% endif %}
+{% endblock %}

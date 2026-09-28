@@ -30,6 +30,9 @@ class KnowledgeDocument(BusinessOwnedModel):
     source_type = models.CharField(max_length=8, choices=SourceType.choices)
     file = models.FileField(upload_to=document_upload_path, blank=True)
     source_url = models.URLField(blank=True)
+    max_pages = models.PositiveSmallIntegerField(
+        default=1, help_text="For URLs: crawl up to this many pages on the same site (1 = just this page)."
+    )
     raw_text = models.TextField(blank=True, help_text="Pasted text / FAQ, or the extracted text.")
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     error = models.TextField(blank=True)

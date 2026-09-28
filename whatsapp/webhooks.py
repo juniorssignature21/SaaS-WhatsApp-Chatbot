@@ -34,6 +34,7 @@ STATUS_RANK = {
     Message.Status.DELIVERED: 2,
     Message.Status.READ: 3,
 }
+MEDIA_TYPES = {"image", "audio", "video", "document", "sticker"}
 STATUS_MAP = {
     "sent": Message.Status.SENT,
     "delivered": Message.Status.DELIVERED,
@@ -125,9 +126,14 @@ def handle_inbound_message(account, raw, profile_name=""):
     with transaction.atomic():
         customer = get_or_create_customer(account.business, sender, profile_name)
         conversation = get_active_conversation(account.business, customer, whatsapp_account=account)
+        metadata = {"raw_type": raw.get("type"), "context": raw.get("context")}
+        body = raw.get(raw.get("type"), {})
+        if isinstance(body, dict) and body.get("id") and raw.get("type") in MEDIA_TYPES:
+            metadata.update(media_id=body["id"], mime_type=body.get("mime_type", ""),
+                            filename=body.get("filename", ""), voice=bool(body.get("voice")))
         message, created = record_inbound(
             conversation, content, message_type=message_type, external_id=wamid,
-            metadata={"raw_type": raw.get("type"), "context": raw.get("context")}, sent_at=sent_at,
+            metadata=metadata, sent_at=sent_at,
         )
         if created:
             transaction.on_commit(lambda: mark_whatsapp_message_read.delay(message.id))
@@ -166,10 +172,13 @@ def extract_content(raw):
         return Message.Type.BUTTON, body.get("text", "")
     if kind in {"image", "video", "document"}:
         caption = body.get("caption", "")
-        label = f"[Customer sent a {kind}{': ' + body['filename'] if body.get('filename') else ''}]"
+        noun = {"image": "an image", "video": "a video", "document": "a document"}[kind]
+        label = f"[Customer sent {noun}{': ' + body['filename'] if body.get('filename') else ''}]"
         return kind, f"{label} {caption}".strip()
-    if kind in {"audio", "sticker"}:
-        return kind, f"[Customer sent a {kind}]"
+    if kind == "audio":
+        return kind, "[Customer sent a voice note]"
+    if kind == "sticker":
+        return kind, "[Customer sent a sticker]"
     if kind == "location":
         parts = [body.get("name"), body.get("address"), f"({body.get('latitude')}, {body.get('longitude')})"]
         return Message.Type.LOCATION, "[Customer shared a location] " + " ".join(p for p in parts if p)

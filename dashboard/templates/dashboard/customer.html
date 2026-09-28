@@ -1,0 +1,23 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ customer }}{% endblock %}
+{% block content %}
+<h1>{{ customer.name|default:"Unknown customer" }}</h1>
+<p class="lead mono">+{{ customer.phone_number }} · first seen {{ customer.created_at|date:"j M Y" }}</p>
+<div class="grid cols-2">
+  <form method="post" class="card">{% csrf_token %}
+    <h2>Profile</h2>
+    <label>Name</label><input type="text" name="name" value="{{ customer.name }}" {% if not is_agent %}disabled{% endif %}>
+    <label>Email</label><input type="email" name="email" value="{{ customer.email }}" {% if not is_agent %}disabled{% endif %}>
+    <label>External ID</label><input type="text" name="external_id" value="{{ customer.external_id }}" {% if not is_agent %}disabled{% endif %}>
+    <div class="help">The customer's ID in your own CRM; it is sent to your tools.</div>
+    <label>Notes</label><textarea name="notes" {% if not is_agent %}disabled{% endif %}>{{ customer.metadata.notes }}</textarea>
+    {% if is_agent %}<div style="margin-top:12px"><button>Save</button></div>{% endif %}
+  </form>
+  <div class="card flush">
+    <div style="padding:14px 16px"><h2 style="margin:0">Conversations</h2></div>
+    <table>{% for c in conversations %}
+      <tr class="clickable" data-href="{% url 'dashboard:conversation' c.id %}"><td><a href="{% url 'dashboard:conversation' c.id %}">{{ c.started_at|date:"j M Y H:i" }}</a></td><td><span class="badge {{ c.status }}">{{ c.get_status_display }}</span></td></tr>
+    {% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</table>
+  </div>
+</div>
+{% endblock %}

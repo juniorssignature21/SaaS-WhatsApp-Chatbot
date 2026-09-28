@@ -276,3 +276,23 @@ class MemoryTests(TestCase):
 
         with self.assertRaises(LLMError):
             get_provider()
+
+
+class PlaygroundTests(TestCase):
+    def test_playground_chat_without_whatsapp(self):
+        from common.testing import api_client
+
+        business, owner = make_business("Play")
+        business.ai_config.enabled = False  # still testable while off for customers
+        business.ai_config.save()
+        client = api_client(owner)
+        with mock.patch("whatsapp.tasks.WhatsAppClient.send_text") as send:
+            response = client.post("/api/v1/chatbot/playground/", {"message": "Hello bot"}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["outcome"], "replied")
+        self.assertEqual([m["content"] for m in response.data["messages"]], ["Hello bot", "Echo: Hello bot"])
+        send.assert_not_called()
+        # Sandbox chats stay out of the inbox and customer list.
+        self.assertEqual(client.get("/api/v1/conversations/").data["results"], [])
+        self.assertEqual(client.post("/api/v1/chatbot/playground/", {"reset": True}, format="json").data,
+                         {"messages": []})

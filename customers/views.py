@@ -15,7 +15,8 @@ class CustomerViewSet(TenantMixin, mixins.ListModelMixin, mixins.RetrieveModelMi
     write_role = Role.AGENT
 
     def get_queryset(self):
-        qs = Customer.objects.filter(business=self.business).order_by("-updated_at")
+        qs = (Customer.objects.filter(business=self.business).exclude(phone_number__startswith="sandbox-")
+              .order_by("-updated_at"))
         search = self.request.query_params.get("search")
         if search:
             qs = qs.filter(Q(name__icontains=search) | Q(phone_number__icontains=search) | Q(email__icontains=search))

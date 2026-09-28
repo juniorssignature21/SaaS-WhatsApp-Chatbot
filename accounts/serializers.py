@@ -7,8 +7,8 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "full_name", "email_verified", "date_joined"]
-        read_only_fields = ["id", "email", "email_verified", "date_joined"]
+        fields = ["id", "email", "full_name", "email_verified", "mfa_enabled", "date_joined"]
+        read_only_fields = ["id", "email", "email_verified", "mfa_enabled", "date_joined"]
 
 
 class SignupSerializer(serializers.Serializer):
@@ -41,4 +41,43 @@ class LoginSerializer(serializers.Serializer):
         if user is None or not user.is_active:
             raise serializers.ValidationError("Invalid email or password.")
         attrs["user"] = user
+        return attrs
+
+
+class MFACodeSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=32)
+
+
+class MFALoginSerializer(serializers.Serializer):
+    mfa_token = serializers.CharField()
+    code = serializers.CharField(max_length=32)
+
+
+class EmailTokenSerializer(serializers.Serializer):
+    token = serializers.CharField()
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        password_validation.validate_password(value)
+        return value
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if not user.check_password(attrs["current_password"]):
+            raise serializers.ValidationError({"current_password": "Incorrect password."})
+        password_validation.validate_password(attrs["new_password"], user)
         return attrs

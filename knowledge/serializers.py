@@ -18,7 +18,7 @@ class KnowledgeDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = KnowledgeDocument
         fields = [
-            "id", "title", "source_type", "file", "source_url", "raw_text", "faqs",
+            "id", "title", "source_type", "file", "source_url", "max_pages", "raw_text", "faqs",
             "status", "error", "chunk_count", "enabled", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "status", "error", "chunk_count", "created_at", "updated_at"]
@@ -32,6 +32,11 @@ class KnowledgeDocumentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Supported types: {', '.join(sorted(SUPPORTED_EXTENSIONS))}.")
         if value.size > settings.KNOWLEDGE_MAX_UPLOAD_BYTES:
             raise serializers.ValidationError("File is too large.")
+        return value
+
+    def validate_max_pages(self, value):
+        if not 1 <= value <= settings.KNOWLEDGE_MAX_CRAWL_PAGES:
+            raise serializers.ValidationError(f"Between 1 and {settings.KNOWLEDGE_MAX_CRAWL_PAGES}.")
         return value
 
     def validate(self, attrs):

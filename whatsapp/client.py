@@ -66,6 +66,58 @@ class WhatsAppClient:
             json={"messaging_product": "whatsapp", "status": "read", "message_id": message_id},
         )
 
+    def send_template(self, to, name, language, params):
+        components = []
+        if params:
+            components.append({"type": "body", "parameters": [{"type": "text", "text": p} for p in params]})
+        data = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "template",
+            "template": {"name": name, "language": {"code": language}, "components": components},
+        }
+        payload = self._request("POST", f"{self.account.phone_number_id}/messages", json=data)
+        return payload["messages"][0]["id"]
+
+    def list_templates(self):
+        """All message templates of the WhatsApp Business Account (follows paging)."""
+        path = f"{self.account.business_account_id}/message_templates"
+        params = {"fields": "id,name,language,status,category,components", "limit": 100}
+        templates, pages = [], 0
+        while path and pages < 20:
+            payload = self._request("GET", path, params=params)
+            templates.extend(payload.get("data", []))
+            after = payload.get("paging", {}).get("cursors", {}).get("after")
+            path = path if after and payload.get("paging", {}).get("next") else None
+            params = {**params, "after": after}
+            pages += 1
+        return templates
+
+    def get_media(self, media_id):
+        """Returns {"url", "mime_type", "file_size", ...} for an inbound media id."""
+        return self._request("GET", media_id)
+
+    def download(self, url, max_bytes):
+        if not url.startswith("https://"):
+            raise WhatsAppAPIError("Unexpected media URL.")
+        try:
+            response = requests.get(
+                url, headers={"Authorization": f"Bearer {self.account.access_token}"},
+                timeout=settings.WHATSAPP_REQUEST_TIMEOUT, stream=True,
+            )
+        except requests.RequestException as exc:
+            raise WhatsAppAPIError(f"Network error: {exc.__class__.__name__}", retryable=True) from exc
+        if response.status_code >= 400:
+            raise WhatsAppAPIError(f"Media download failed: HTTP {response.status_code}",
+                                   status_code=response.status_code, retryable=response.status_code >= 500)
+        chunks, size = [], 0
+        for chunk in response.iter_content(64 * 1024):
+            size += len(chunk)
+            if size > max_bytes:
+                raise WhatsAppAPIError("Media file is too large.")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     def get_phone_number_info(self):
         return self._request(
             "GET", self.account.phone_number_id,

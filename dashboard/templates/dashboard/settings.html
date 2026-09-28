@@ -1,0 +1,38 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Business settings</h1>
+<div class="grid cols-2">
+  <form method="post" class="card">{% csrf_token %}
+    <h2>Details</h2>
+    <label>Business name</label><input type="text" name="name" value="{{ business.name }}" required>
+    <label>Contact email</label><input type="email" name="email" value="{{ business.email }}">
+    <label>Phone</label><input type="tel" name="phone" value="{{ business.phone }}">
+    <label>Time zone</label><input type="text" name="timezone" value="{{ business.timezone }}">
+    <h3>Branding</h3>
+    <label>Brand name (shown in the dashboard)</label><input type="text" name="brand_name" value="{{ business.brand_name }}" placeholder="{{ platform_name }}">
+    <label>Brand colour</label><input type="text" name="brand_color" value="{{ business.brand_color }}" placeholder="#0f766e" pattern="#[0-9a-fA-F]{6}">
+    <div style="margin-top:12px"><button>Save</button></div>
+  </form>
+  <div class="card">
+    <h2>API keys</h2>
+    <p class="muted">Let your own systems read conversations, send replies and templates through <code>/api/v1/</code> with <code>Authorization: Api-Key &lt;key&gt;</code>.</p>
+    {% if not api_available %}<div class="notice">API access is included in the Enterprise plan.</div>{% endif %}
+    {% if new_key %}
+      <div class="notice"><strong>Copy your new key now. It won't be shown again.</strong><input type="text" class="mono" readonly value="{{ new_key }}" onclick="this.select()" style="margin-top:6px"></div>
+    {% endif %}
+    <table>
+      {% for k in api_keys %}
+        <tr><td><strong>{{ k.name }}</strong><div class="muted mono">wak_{{ k.prefix }}_… · {{ k.role|title }}</div></td>
+            <td class="muted">{% if k.last_used_at %}used {{ k.last_used_at|timesince }} ago{% else %}never used{% endif %}</td>
+            <td><form method="post" action="{% url 'dashboard:api_key_revoke' k.id %}" data-confirm="Revoke this key? Anything using it will stop working.">{% csrf_token %}<button class="danger small">Revoke</button></form></td></tr>
+      {% empty %}<tr><td class="muted">No keys.</td></tr>{% endfor %}
+    </table>
+    <form method="post" action="{% url 'dashboard:api_key_create' %}" class="row" style="margin-top:12px">{% csrf_token %}
+      <input type="text" name="name" placeholder="Key name, e.g. CRM sync" required style="flex:1">
+      <select name="role" style="width:auto">{% for value, label in key_roles %}<option value="{{ value }}" {% if value == 'AGENT' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      <button class="small">Create key</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

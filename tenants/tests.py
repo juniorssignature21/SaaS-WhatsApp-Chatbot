@@ -80,6 +80,7 @@ class RoleTests(TestCase):
         customer = get_or_create_customer(self.business, "234800")
         account = make_whatsapp_account(self.business)
         self.conversation = get_active_conversation(self.business, customer, whatsapp_account=account)
+        record_inbound(self.conversation, "hello")
 
     def test_viewer_is_read_only(self):
         viewer = api_client(add_member(self.business, Role.VIEWER))
@@ -128,3 +129,58 @@ class PlanLimitTests(TestCase):
             "phone_number": "+234", "phone_number_id": "new", "business_account_id": "w",
             "access_token": "t"}, format="json")
         self.assertEqual(response.status_code, 403)
+
+
+class APIKeyTests(TestCase):
+    def setUp(self):
+        self.business, self.owner = make_business("Corp", plan="enterprise")
+        customer = get_or_create_customer(self.business, "2348000000009", "Keyed")
+        record_inbound(get_active_conversation(self.business, customer), "hi")
+        response = api_client(self.owner).post("/api/v1/api-keys/", {"name": "CRM", "role": "VIEWER"}, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.raw, self.key_id = response.data["key"], response.data["id"]
+
+    def client_for(self, raw=None):
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Api-Key {raw or self.raw}")
+        return client
+
+    def test_key_reads_its_own_tenant_only(self):
+        client = self.client_for()
+        self.assertEqual([c["name"] for c in client.get("/api/v1/customers/").data["results"]], ["Keyed"])
+        other, _ = make_business("Other", plan="enterprise")
+        foreign = client.get("/api/v1/customers/", HTTP_X_BUSINESS_ID=str(other.id))
+        self.assertEqual(foreign.status_code, 404)
+
+    def test_key_role_is_enforced_and_audited(self):
+        conversation = Conversation.objects.get(business=self.business)
+        self.assertEqual(self.client_for().post(f"/api/v1/conversations/{conversation.id}/takeover/").status_code, 403)
+        self.assertEqual(self.client_for().get("/api/v1/businesses/").status_code, 403)
+        self.assertTrue(AuditLog.objects.filter(action="api_key.created").exists())
+
+    def test_invalid_and_revoked_keys(self):
+        self.assertEqual(self.client_for("wak_bad_key").get("/api/v1/customers/").status_code, 401)
+        api_client(self.owner).delete(f"/api/v1/api-keys/{self.key_id}/")
+        self.assertEqual(self.client_for().get("/api/v1/customers/").status_code, 401)
+
+    def test_plan_gate(self):
+        from billing.models import Plan
+
+        self.business.subscription.plan = Plan.objects.get(code="business")
+        self.business.subscription.save()
+        self.assertEqual(self.client_for().get("/api/v1/customers/").status_code, 403)
+
+    def test_agent_key_can_reply(self):
+        agent_raw = api_client(self.owner).post("/api/v1/api-keys/", {"name": "bot", "role": "AGENT"},
+                                                format="json").data["key"]
+        conversation = Conversation.objects.get(business=self.business)
+        conversation.whatsapp_account = make_whatsapp_account(self.business)
+        conversation.save()
+        with mock.patch("whatsapp.tasks.WhatsAppClient.send_text", return_value="wamid.k"):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client_for(agent_raw).post(
+                    f"/api/v1/conversations/{conversation.id}/reply/", {"content": "From our CRM"}, format="json")
+        self.assertEqual(response.status_code, 201)
+        conversation.refresh_from_db()
+        self.assertEqual(conversation.status, Conversation.Status.HUMAN_HANDLING)
+        self.assertIsNone(conversation.assigned_agent)

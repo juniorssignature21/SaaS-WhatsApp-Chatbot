@@ -1,0 +1,46 @@
+{% extends "dashboard/base.html" %}
+{% block title %}My account{% endblock %}
+{% block content %}
+<h1>My account</h1>
+{% if recovery_codes %}
+  <div class="card" style="margin-bottom:16px; border-color:#fde68a">
+    <h2>Save your recovery codes</h2>
+    <p>Each code works once if you lose your phone. Store them somewhere safe; they won't be shown again.</p>
+    <div class="codes">{% for c in recovery_codes %}<div>{{ c }}</div>{% endfor %}</div>
+  </div>
+{% endif %}
+<div class="grid cols-2">
+  <form method="post" class="card">{% csrf_token %}<input type="hidden" name="section" value="profile">
+    <h2>Profile</h2>
+    <label>Email</label><input type="email" value="{{ request.user.email }}" disabled>
+    {% if request.user.email_verified %}<div class="help">Verified</div>{% endif %}
+    <label>Name</label><input type="text" name="full_name" value="{{ request.user.full_name }}">
+    <label class="check"><input type="checkbox" name="notify_by_email" {% if membership.notify_by_email %}checked{% endif %}> Email me when a {{ business.name }} customer needs a human</label>
+    <div style="margin-top:12px"><button>Save</button></div>
+  </form>
+  <div class="stack">
+    {% if not request.user.email_verified %}
+    <form method="post" class="card">{% csrf_token %}<input type="hidden" name="section" value="resend">
+      <h2>Verify your email</h2><p class="muted">We sent a link to {{ request.user.email }}.</p><button class="secondary">Resend link</button>
+    </form>
+    {% endif %}
+    <div class="card">
+      <h2>Two-factor authentication</h2>
+      {% if request.user.mfa_enabled %}
+        <p><span class="badge ok">On</span> {{ request.user.mfa_recovery_codes|length }} recovery code{{ request.user.mfa_recovery_codes|length|pluralize }} left.</p>
+        <form method="post" class="row">{% csrf_token %}<input type="hidden" name="section" value="mfa_disable">
+          <input type="text" name="code" placeholder="Code to confirm" required autocomplete="one-time-code" style="flex:1"><button class="danger small">Turn off</button></form>
+      {% else %}
+        <p class="muted">Protect your account with an authenticator app (Google Authenticator, 1Password, Authy…).</p>
+        <a class="btn" href="{% url 'dashboard:mfa_setup' %}">Set up two-factor</a>
+      {% endif %}
+    </div>
+    <form method="post" class="card">{% csrf_token %}<input type="hidden" name="section" value="password">
+      <h2>Change password</h2>
+      <label>Current password</label><input type="password" name="current_password" required autocomplete="current-password">
+      <label>New password</label><input type="password" name="new_password" required autocomplete="new-password">
+      <div style="margin-top:12px"><button class="secondary">Change password</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

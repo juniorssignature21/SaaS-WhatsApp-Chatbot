@@ -1,0 +1,19 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Playground{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Playground</h1><p class="lead">Chat with {{ config.name }} exactly as a customer would. Nothing is sent on WhatsApp; AI usage still counts.</p></div>
+  <form method="post">{% csrf_token %}<button name="reset" value="1" class="secondary">Start over</button></form>
+</div>
+{% if not config.enabled %}<div class="notice">The assistant is switched off for customers, but you can still test it here.</div>{% endif %}
+<div class="thread" style="height:55vh">
+  {% include "dashboard/_messages.html" %}
+  {% if not thread %}<div class="note">Say hello to test your assistant.</div>{% endif %}
+</div>
+<form method="post" class="composer">{% csrf_token %}
+  <textarea name="message" placeholder="Type as the customer… (Ctrl+Enter to send)" data-submit-on-enter autofocus required></textarea>
+  <button type="submit">Send</button>
+</form>
+<p class="help">Tool calls appear as 🔧 notes so you can see what the assistant did. Handoffs end the test conversation; send another message to start a new one.</p>
+<script>(function(){var t=document.querySelector('.thread'); if(t) t.scrollTop=t.scrollHeight;})();</script>
+{% endblock %}

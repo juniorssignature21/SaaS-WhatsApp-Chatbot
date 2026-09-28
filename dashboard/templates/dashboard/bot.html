@@ -1,0 +1,50 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Assistant{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Assistant settings</h1><p class="lead">How {{ config.name }} talks to your customers.</p></div>
+  <a class="btn secondary" href="{% url 'dashboard:bot_playground' %}">Try it in the playground →</a>
+</div>
+<form method="post" class="grid cols-2">{% csrf_token %}
+  <div class="card">
+    <h2>Persona &amp; instructions</h2>
+    <label class="check"><input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %}> Assistant is on (off routes every chat to humans)</label>
+    <label>Assistant name</label><input type="text" name="name" value="{{ config.name }}" maxlength="100">
+    <label>Instructions</label>
+    <textarea name="system_prompt" rows="12" placeholder="Personality, what to help with, policies, prices you want mentioned, what to never do…">{{ config.system_prompt }}</textarea>
+    <div class="help">Facts that change often (prices, menus, policies) are better kept in Knowledge.</div>
+    <label>Welcome message</label><textarea name="welcome_message" rows="3" placeholder="Hi! I'm the Acme assistant. How can I help?">{{ config.welcome_message }}</textarea>
+    <label>Fallback message</label><textarea name="fallback_message" rows="2">{{ config.fallback_message }}</textarea>
+    <div class="help">Sent when the AI can't answer (errors, refusals).</div>
+  </div>
+  <div class="card">
+    <h2>Behaviour</h2>
+    <label class="check"><input type="checkbox" name="human_handoff_enabled" {% if config.human_handoff_enabled %}checked{% endif %}> Allow handing off to a human</label>
+    <label class="check"><input type="checkbox" name="rag_enabled" {% if config.rag_enabled %}checked{% endif %}> Answer from the knowledge base</label>
+    <label class="check"><input type="checkbox" name="memory_enabled" {% if config.memory_enabled %}checked{% endif %}> Remember earlier messages in the conversation</label>
+    <label>Reply language</label><input type="text" name="language" value="{{ config.language }}">
+    <div class="help"><code>auto</code> replies in the customer's language, or name one (e.g. English, Yoruba, French).</div>
+    <label>History length (messages)</label><input type="number" name="history_limit" min="1" max="100" value="{{ config.history_limit }}">
+    <h3>Model</h3>
+    <label>Model</label>
+    <select name="model">{% for m in models %}<option value="{{ m }}" {% if config.model == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+      {% if config.model not in models %}<option value="{{ config.model }}" selected>{{ config.model }}</option>{% endif %}</select>
+    <label>Effort</label>
+    <select name="effort">{% for value, label in effort_choices %}<option value="{{ value }}" {% if config.effort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+    <div class="help">Lower effort replies faster and costs less; short FAQ-style chats usually do well on low or medium.</div>
+    <label>Max tokens per reply</label><input type="number" name="max_tokens" min="256" max="32000" value="{{ config.max_tokens }}">
+    {% if is_admin %}<div style="margin-top:16px"><button>Save settings</button></div>{% else %}<p class="muted">Only admins can change these settings.</p>{% endif %}
+  </div>
+</form>
+
+<h2 style="margin-top:24px">Start from a template</h2>
+<div class="grid cols-3">
+  {% for key, t in templates.items %}
+    <div class="template-card">
+      <strong>{{ t.name }}</strong>{% if config.template == key %} <span class="badge ok">current</span>{% endif %}
+      <p class="muted">{{ t.prompt|truncatechars:140 }}</p>
+      {% if is_admin %}<form method="post" action="{% url 'dashboard:bot_template' key %}" data-confirm="Replace the assistant's name and instructions with this template?">{% csrf_token %}<button class="secondary small">Use template</button></form>{% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

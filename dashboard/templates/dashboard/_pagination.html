@@ -1,0 +1,7 @@
+{% if page.paginator.num_pages > 1 %}
+<div class="row" style="margin-top:12px; justify-content:flex-end">
+  {% if page.has_previous %}<a class="btn secondary small" href="?{% if tab %}tab={{ tab }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page.previous_page_number }}">← Newer</a>{% endif %}
+  <span class="muted">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn secondary small" href="?{% if tab %}tab={{ tab }}&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}page={{ page.next_page_number }}">Older →</a>{% endif %}
+</div>
+{% endif %}

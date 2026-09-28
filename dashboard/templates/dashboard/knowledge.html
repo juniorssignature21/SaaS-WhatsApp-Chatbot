@@ -1,0 +1,70 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Knowledge{% endblock %}
+{% block content %}
+<h1>Knowledge base</h1>
+<p class="lead">Documents the assistant searches before answering. Keep prices, policies, menus and FAQs here.</p>
+{% if not rag_available %}<div class="notice">Knowledge search isn't included in your current plan.</div>{% endif %}
+
+<div class="card flush" style="margin-bottom:16px">
+  <table>
+    <thead><tr><th>Title</th><th>Source</th><th>Status</th><th>Chunks</th><th></th></tr></thead>
+    <tbody>
+    {% for d in documents %}
+      <tr>
+        <td><strong>{{ d.title }}</strong>{% if not d.enabled %} <span class="badge DISABLED">disabled</span>{% endif %}{% if d.error %}<div class="help" style="color:var(--danger)">{{ d.error }}</div>{% endif %}</td>
+        <td>{{ d.get_source_type_display }}{% if d.source_url %}<div class="muted">{{ d.source_url|truncatechars:50 }}{% if d.max_pages > 1 %} (up to {{ d.max_pages }} pages){% endif %}</div>{% endif %}</td>
+        <td><span class="badge {{ d.status }}">{{ d.get_status_display }}</span></td>
+        <td>{{ d.chunk_count }}</td>
+        <td style="text-align:right">{% if is_admin %}
+          <div class="row" style="justify-content:flex-end">
+            <form method="post" action="{% url 'dashboard:knowledge_action' d.id 'toggle' %}" class="inline">{% csrf_token %}<button class="secondary small">{% if d.enabled %}Disable{% else %}Enable{% endif %}</button></form>
+            <form method="post" action="{% url 'dashboard:knowledge_action' d.id 'reprocess' %}" class="inline">{% csrf_token %}<button class="secondary small">Reprocess</button></form>
+            <form method="post" action="{% url 'dashboard:knowledge_action' d.id 'delete' %}" class="inline" data-confirm="Delete this document?">{% csrf_token %}<button class="danger small">Delete</button></form>
+          </div>{% endif %}
+        </td>
+      </tr>
+    {% empty %}<tr><td colspan="5" class="empty">No documents yet. Add your first one below.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="grid cols-2">
+  {% if is_admin %}
+  <div class="card">
+    <h2>Add knowledge</h2>
+    <details open><summary><strong>Upload a file</strong> (PDF, DOCX, TXT, MD, CSV)</summary>
+      <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="source_type" value="FILE">
+        <label>Title</label><input type="text" name="title" placeholder="Defaults to the file name">
+        <label>File</label><input type="file" name="file" accept=".pdf,.docx,.txt,.md,.csv" required>
+        <div style="margin-top:10px"><button class="small">Upload</button></div></form></details>
+    <details><summary><strong>Import a website</strong></summary>
+      <form method="post">{% csrf_token %}<input type="hidden" name="source_type" value="URL">
+        <label>Title</label><input type="text" name="title">
+        <label>URL</label><input type="url" name="source_url" placeholder="https://example.com/faq" required>
+        <label>Pages to crawl</label><input type="number" name="max_pages" min="1" max="50" value="1">
+        <div class="help">1 imports just this page; more follows links on the same site (robots.txt respected).</div>
+        <div style="margin-top:10px"><button class="small">Import</button></div></form></details>
+    <details><summary><strong>Write FAQs</strong></summary>
+      <form method="post">{% csrf_token %}<input type="hidden" name="source_type" value="FAQ">
+        <label>Title</label><input type="text" name="title" value="FAQ">
+        <label>Questions and answers</label>
+        <textarea name="faq_text" rows="8" placeholder="Q: What time do you open?&#10;A: 9am to 10pm every day.&#10;&#10;Q: Do you deliver?&#10;A: Yes, within Lagos." required></textarea>
+        <div style="margin-top:10px"><button class="small">Save FAQs</button></div></form></details>
+    <details><summary><strong>Paste text</strong></summary>
+      <form method="post">{% csrf_token %}<input type="hidden" name="source_type" value="TEXT">
+        <label>Title</label><input type="text" name="title" required>
+        <label>Text</label><textarea name="raw_text" rows="8" required></textarea>
+        <div style="margin-top:10px"><button class="small">Save</button></div></form></details>
+  </div>
+  {% endif %}
+  <div class="card">
+    <h2>Test search</h2>
+    <p class="muted">See which passages the assistant would read for a question.</p>
+    <form method="get" class="row"><input type="search" name="q" value="{{ q }}" placeholder="What time is check-in?" style="flex:1"><button class="secondary">Search</button></form>
+    {% if results is not None %}
+      {% for r in results %}<div class="template-card" style="margin-top:10px"><div class="muted">{{ r.document_title }} · score {{ r.score|floatformat:2 }}</div><div style="white-space:pre-wrap">{{ r.content|truncatechars:500 }}</div></div>
+      {% empty %}<p class="muted" style="margin-top:10px">Nothing relevant found.</p>{% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

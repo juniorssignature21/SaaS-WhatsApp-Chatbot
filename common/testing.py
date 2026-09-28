@@ -17,8 +17,10 @@ from whatsapp.models import WhatsAppAccount
 _counter = itertools.count(1)
 
 
-def make_user(email=None, password="S3cure-pass-123"):
-    return User.objects.create_user(email=email or f"user{next(_counter)}@example.com", password=password)
+def make_user(email=None, password="S3cure-pass-123", verified=True):
+    return User.objects.create_user(
+        email=email or f"user{next(_counter)}@example.com", password=password, email_verified=verified
+    )
 
 
 def make_business(name="Acme", owner=None, plan="business"):

@@ -1,3 +1,7 @@
+import os
+import uuid
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -7,6 +11,7 @@ from tenants.models import BusinessOwnedModel
 
 class Channel(models.TextChoices):
     WHATSAPP = "WHATSAPP"
+    SANDBOX = "SANDBOX"  # dashboard playground: nothing leaves the platform
     # Future channel adapters (TELEGRAM, INSTAGRAM, WEBCHAT...) plug in here
     # without touching the AI engine.
 
@@ -49,8 +54,25 @@ class Conversation(BusinessOwnedModel):
         return f"Conversation {self.pk} ({self.status})"
 
     @property
+    def service_window_open(self):
+        """WhatsApp allows free-form messages only within 24h of the customer's last message."""
+        if self.channel != Channel.WHATSAPP:
+            return True
+        last_inbound = (
+            self.messages.filter(direction=Message.Direction.INBOUND)
+            .order_by("-created_at").values_list("created_at", flat=True).first()
+        )
+        window = timedelta(hours=settings.WHATSAPP_SERVICE_WINDOW_HOURS)
+        return last_inbound is not None and timezone.now() - last_inbound < window
+
+    @property
     def ai_enabled(self):
         return self.status in {self.Status.OPEN, self.Status.AI_HANDLING, self.Status.WAITING_FOR_CUSTOMER}
+
+
+def message_media_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()[:10]
+    return f"messages/{instance.business_id}/{uuid.uuid4().hex}{ext}"
 
 
 class Message(BusinessOwnedModel):
@@ -99,6 +121,9 @@ class Message(BusinessOwnedModel):
     error = models.TextField(blank=True)
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     metadata = models.JSONField(default=dict, blank=True)
+    # Downloaded attachment (images, voice notes, documents) - never publicly served.
+    media = models.FileField(upload_to=message_media_path, blank=True)
+    media_mime_type = models.CharField(max_length=100, blank=True)
 
     class Meta:
         ordering = ["created_at", "id"]

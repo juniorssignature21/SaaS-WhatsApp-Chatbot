@@ -1,0 +1,62 @@
+{% extends "dashboard/base.html" %}
+{% block title %}WhatsApp{% endblock %}
+{% block content %}
+<h1>WhatsApp numbers</h1>
+<p class="lead">Connect numbers from your WhatsApp Business Account (Meta Cloud API).</p>
+
+<div class="card flush" style="margin-bottom:16px">
+  <table>
+    <thead><tr><th>Number</th><th>Status</th><th>Last webhook</th><th></th></tr></thead>
+    <tbody>
+    {% for a in accounts %}
+      <tr>
+        <td><strong>{{ a.display_name|default:a.phone_number }}</strong><div class="muted mono">{{ a.phone_number }} · ID {{ a.phone_number_id }}</div></td>
+        <td><span class="badge {{ a.status }}">{{ a.get_status_display }}</span></td>
+        <td class="muted">{% if a.last_webhook_at %}{{ a.last_webhook_at|timesince }} ago{% else %}never{% endif %}</td>
+        <td style="text-align:right">
+          <div class="row" style="justify-content:flex-end">
+            <form method="post" action="{% url 'dashboard:whatsapp_action' a.id 'verify' %}" class="inline">{% csrf_token %}<button class="secondary small">Verify</button></form>
+            <form method="post" action="{% url 'dashboard:whatsapp_action' a.id 'sync' %}" class="inline">{% csrf_token %}<button class="secondary small">Sync templates</button></form>
+            <form method="post" action="{% url 'dashboard:whatsapp_action' a.id 'toggle' %}" class="inline">{% csrf_token %}<button class="secondary small">{% if a.status == 'ACTIVE' %}Disable{% else %}Enable{% endif %}</button></form>
+            <form method="post" action="{% url 'dashboard:whatsapp_action' a.id 'delete' %}" class="inline" data-confirm="Disconnect this number? Its conversations are kept.">{% csrf_token %}<button class="danger small">Disconnect</button></form>
+          </div>
+          <details style="margin-top:6px; text-align:left"><summary class="muted">Rotate access token</summary>
+            <form method="post" action="{% url 'dashboard:whatsapp_action' a.id 'token' %}" class="row" style="margin-top:6px">{% csrf_token %}<input type="password" name="access_token" placeholder="New access token" autocomplete="off" style="flex:1"><button class="small">Save</button></form>
+          </details>
+        </td>
+      </tr>
+    {% empty %}<tr><td colspan="4" class="empty">No numbers connected yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="grid cols-2">
+  <form method="post" class="card">{% csrf_token %}
+    <h2>Connect a number</h2>
+    <label>Display name</label><input type="text" name="display_name" placeholder="Acme Support">
+    <label>Phone number</label><input type="tel" name="phone_number" placeholder="+2348012345678" required>
+    <label>Phone number ID</label><input type="text" name="phone_number_id" required>
+    <label>WhatsApp Business Account ID</label><input type="text" name="business_account_id" required>
+    <label>Access token</label><input type="password" name="access_token" required autocomplete="off">
+    <div class="help">Use a permanent System User token with <code>whatsapp_business_messaging</code> and <code>whatsapp_business_management</code>. It is encrypted at rest and never shown again.</div>
+    <div style="margin-top:12px"><button>Connect</button></div>
+  </form>
+  <div class="card">
+    <h2>Webhook setup</h2>
+    <p>In your Meta app → WhatsApp → Configuration, set:</p>
+    <label>Callback URL</label><input type="text" readonly value="{{ webhook_url }}">
+    <label>Verify token</label><p class="muted">The <code>WHATSAPP_VERIFY_TOKEN</code> configured by your platform administrator.</p>
+    <p>Then subscribe to the <strong>messages</strong> webhook field.</p>
+  </div>
+</div>
+
+<div class="card flush" style="margin-top:16px">
+  <div style="padding:14px 16px"><h2 style="margin:0">Message templates</h2><p class="muted" style="margin:4px 0 0">Create templates in WhatsApp Manager, then sync. Approved templates without header variables can be sent from the inbox.</p></div>
+  <table>
+    <thead><tr><th>Name</th><th>Language</th><th>Category</th><th>Status</th><th>Body</th></tr></thead>
+    {% for t in templates %}
+      <tr><td class="mono">{{ t.name }}</td><td>{{ t.language }}</td><td>{{ t.category|title }}</td><td><span class="badge {{ t.status }}">{{ t.status|title }}</span>{% if t.status == 'APPROVED' and not t.is_sendable %} <span class="badge warn">header not supported</span>{% endif %}</td><td class="muted">{{ t.body_text|truncatechars:120 }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="empty">No templates synced.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endblock %}

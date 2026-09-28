@@ -6,6 +6,8 @@ from django.db import transaction
 from conversations.models import Message
 
 from .client import WhatsAppAPIError, WhatsAppClient
+from .models import WhatsAppAccount
+from .services import sync_templates
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,13 @@ def send_whatsapp_message(self, message_id):
             return
 
         try:
-            wamid = WhatsAppClient(account).send_text(conversation.customer.phone_number, message.content)
+            client = WhatsAppClient(account)
+            to = conversation.customer.phone_number
+            if message.message_type == Message.Type.TEMPLATE:
+                template = message.metadata["template"]
+                wamid = client.send_template(to, template["name"], template["language"], template["params"])
+            else:
+                wamid = client.send_text(to, message.content)
         except WhatsAppAPIError as exc:
             if exc.retryable and self.request.retries < self.max_retries:
                 raise self.retry(exc=exc, countdown=2 ** (self.request.retries + 1)) from exc
@@ -58,3 +66,21 @@ def _fail(message, error):
     message.status = Message.Status.FAILED
     message.error = error[:2000]
     message.save(update_fields=["status", "error", "updated_at"])
+
+
+@shared_task
+def sync_account_templates(account_id):
+    account = WhatsAppAccount.objects.filter(pk=account_id, status=WhatsAppAccount.Status.ACTIVE).first()
+    if account is None:
+        return 0
+    try:
+        return sync_templates(account)
+    except WhatsAppAPIError as exc:
+        logger.info("Template sync failed for account %s: %s", account_id, exc)
+        return 0
+
+
+@shared_task
+def sync_all_templates():
+    for account_id in WhatsAppAccount.objects.filter(status=WhatsAppAccount.Status.ACTIVE).values_list("id", flat=True):
+        sync_account_templates.delay(account_id)

@@ -51,10 +51,13 @@ INSTALLED_APPS = [
     "tools",
     "billing",
     "analytics",
+    "notifications",
+    "dashboard",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -68,13 +71,14 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "dashboard.context_processors.dashboard",
             ],
         },
     },
@@ -106,6 +110,10 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
 
@@ -117,6 +125,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.TokenAuthentication",
+        "tenants.authentication.APIKeyAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
@@ -130,6 +139,7 @@ REST_FRAMEWORK = {
         "anon": env("THROTTLE_ANON", "30/min"),
         "user": env("THROTTLE_USER", "600/min"),
         "auth": env("THROTTLE_AUTH", "10/min"),
+        "playground": env("THROTTLE_PLAYGROUND", "20/min"),
     },
 }
 
@@ -199,6 +209,7 @@ KNOWLEDGE_CHUNK_SIZE = int(env("KNOWLEDGE_CHUNK_SIZE", "1200"))
 KNOWLEDGE_CHUNK_OVERLAP = int(env("KNOWLEDGE_CHUNK_OVERLAP", "200"))
 KNOWLEDGE_TOP_K = int(env("KNOWLEDGE_TOP_K", "5"))
 KNOWLEDGE_MAX_UPLOAD_BYTES = int(env("KNOWLEDGE_MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
+KNOWLEDGE_MAX_CRAWL_PAGES = int(env("KNOWLEDGE_MAX_CRAWL_PAGES", "50"))
 
 # ---------------------------------------------------------------------------
 # Tools
@@ -207,6 +218,63 @@ TOOLS_HTTP_TIMEOUT = float(env("TOOLS_HTTP_TIMEOUT", "10"))
 # Outbound HTTP tools may never reach private/internal addresses unless this
 # is explicitly enabled (SSRF protection).
 TOOLS_ALLOW_PRIVATE_NETWORKS = env_bool("TOOLS_ALLOW_PRIVATE_NETWORKS", False)
+
+# ---------------------------------------------------------------------------
+# Site, email and accounts
+# ---------------------------------------------------------------------------
+PLATFORM_NAME = env("PLATFORM_NAME", "WhatsApp AI")
+# Public base URL used in emails and payment callbacks.
+SITE_URL = env("SITE_URL", "http://localhost:8000").rstrip("/")
+LOGIN_URL = "dashboard:login"
+LOGIN_REDIRECT_URL = "dashboard:overview"
+EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(env("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "no-reply@localhost")
+# Owners must verify their email before connecting a WhatsApp number.
+REQUIRE_EMAIL_VERIFICATION = env_bool("REQUIRE_EMAIL_VERIFICATION", True)
+EMAIL_VERIFICATION_MAX_AGE = 60 * 60 * 24 * 3
+MFA_CHALLENGE_MAX_AGE = 60 * 5
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 7
+SESSION_COOKIE_HTTPONLY = True
+
+# ---------------------------------------------------------------------------
+# Conversations and media
+# ---------------------------------------------------------------------------
+# WhatsApp only allows free-form messages within 24h of the customer's last message.
+WHATSAPP_SERVICE_WINDOW_HOURS = 24
+# AI conversations idle for this long are resolved automatically (0 disables).
+CONVERSATION_AUTO_RESOLVE_HOURS = int(env("CONVERSATION_AUTO_RESOLVE_HOURS", "24"))
+MEDIA_MAX_DOWNLOAD_BYTES = int(env("MEDIA_MAX_DOWNLOAD_BYTES", str(20 * 1024 * 1024)))
+# Voice-note transcription: "none", or "whisper_http" for any OpenAI-compatible
+# /audio/transcriptions endpoint (hosted or self-hosted Whisper).
+TRANSCRIPTION_PROVIDER = env("TRANSCRIPTION_PROVIDER", "none")
+TRANSCRIPTION_API_URL = env("TRANSCRIPTION_API_URL", "")
+TRANSCRIPTION_API_KEY = env("TRANSCRIPTION_API_KEY", "")
+TRANSCRIPTION_MODEL = env("TRANSCRIPTION_MODEL", "whisper-1")
+
+# ---------------------------------------------------------------------------
+# Billing (Paystack)
+# ---------------------------------------------------------------------------
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_BASE_URL = env("PAYSTACK_BASE_URL", "https://api.paystack.co")
+TRIAL_DAYS = int(env("TRIAL_DAYS", "14"))
+BILLING_GRACE_DAYS = int(env("BILLING_GRACE_DAYS", "3"))
+
+# ---------------------------------------------------------------------------
+# Scheduled jobs (celery beat)
+# ---------------------------------------------------------------------------
+CELERY_BEAT_SCHEDULE = {
+    "auto-resolve-idle-conversations": {
+        "task": "conversations.tasks.auto_resolve_idle_conversations",
+        "schedule": 60 * 15,
+    },
+    "expire-subscriptions": {"task": "billing.tasks.expire_subscriptions", "schedule": 60 * 60},
+    "sync-whatsapp-templates": {"task": "whatsapp.tasks.sync_all_templates", "schedule": 60 * 60 * 6},
+}
 
 LOGGING = {
     "version": 1,

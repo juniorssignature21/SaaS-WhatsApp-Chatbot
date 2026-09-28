@@ -1,3 +1,4 @@
+import json
 import secrets
 
 from django.core.validators import RegexValidator
@@ -47,3 +48,7 @@ class Tool(BusinessOwnedModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def input_schema_json(self):
+        return json.dumps(self.input_schema, indent=2)

@@ -1,0 +1,35 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Team{% endblock %}
+{% block content %}
+<h1>Team</h1>
+<p class="lead">Owners and admins manage settings; agents handle conversations; viewers can only read.</p>
+<div class="card flush" style="margin-bottom:16px">
+  <table>
+    <thead><tr><th>Member</th><th>Role</th><th>Joined</th><th></th></tr></thead>
+    {% for m in members %}
+      <tr>
+        <td><strong>{{ m.user.full_name|default:m.user.email }}</strong><div class="muted">{{ m.user.email }}{% if m.user.mfa_enabled %} · 2FA on{% endif %}</div></td>
+        <td>
+          {% if is_admin and m.role != 'OWNER' and m.user_id != request.user.id %}
+            <form method="post" action="{% url 'dashboard:team_member' m.id 'role' %}" class="row">{% csrf_token %}
+              <select name="role" onchange="this.form.submit()" style="width:auto">{% for r in roles %}<option value="{{ r }}" {% if m.role == r %}selected{% endif %}>{{ r|title }}</option>{% endfor %}</select>
+            </form>
+          {% else %}<span class="badge">{{ m.role|title }}</span>{% endif %}
+        </td>
+        <td class="muted">{{ m.created_at|date:"j M Y" }}</td>
+        <td style="text-align:right">{% if is_admin and m.role != 'OWNER' and m.user_id != request.user.id %}
+          <form method="post" action="{% url 'dashboard:team_member' m.id 'remove' %}" data-confirm="Remove {{ m.user.email }}?">{% csrf_token %}<button class="danger small">Remove</button></form>{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% if is_admin %}
+<form method="post" action="{% url 'dashboard:team_invite' %}" class="card" style="max-width:520px">{% csrf_token %}
+  <h2>Add a team member</h2>
+  <p class="muted">They need an account first: ask them to sign up, then add them here.</p>
+  <label>Email</label><input type="email" name="email" required>
+  <label>Role</label><select name="role">{% for r in roles %}<option value="{{ r }}" {% if r == 'AGENT' %}selected{% endif %}>{{ r|title }}</option>{% endfor %}</select>
+  <div style="margin-top:12px"><button>Add member</button></div>
+</form>
+{% endif %}
+{% endblock %}

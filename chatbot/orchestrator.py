@@ -17,6 +17,7 @@ from knowledge import retrieval
 from tools.base import ToolContext
 from tools.registry import describe_args, get_tools, run_tool
 
+from . import attachments
 from .llm import LLMError, get_provider
 from .memory import build_history
 from .prompts import build_system_prompt, format_knowledge
@@ -34,7 +35,7 @@ class Outcome:
     usage: dict = field(default_factory=dict)
 
 
-def handle_incoming_message(message_id, provider=None):
+def handle_incoming_message(message_id, provider=None, playground=False):
     message = (
         Message.objects.select_related("conversation__customer", "conversation__business__ai_config")
         .filter(pk=message_id, role=Message.Role.USER)
@@ -45,7 +46,7 @@ def handle_incoming_message(message_id, provider=None):
     conversation = message.conversation
     business = conversation.business
 
-    skip = _skip_reason(message, conversation, business)
+    skip = _skip_reason(message, conversation, business, playground)
     if skip:
         return Outcome("skipped", skip)
 
@@ -58,11 +59,11 @@ def handle_incoming_message(message_id, provider=None):
     return _generate_reply(message, conversation, business, config, provider or get_provider())
 
 
-def _skip_reason(message, conversation, business):
+def _skip_reason(message, conversation, business, playground=False):
     if not business.is_active:
         return "business suspended"
     config = getattr(business, "ai_config", None)
-    if config is None or not config.enabled:
+    if config is None or (not config.enabled and not playground):
         return "AI disabled"
     conversation.refresh_from_db(fields=["status"])
     if not conversation.ai_enabled:
@@ -77,6 +78,10 @@ def _skip_reason(message, conversation, business):
 
 
 def _generate_reply(message, conversation, business, config, provider):
+    pending = attachments.pending_customer_messages(conversation, message)
+    attachments.prepare(pending)
+    media_blocks = attachments.content_blocks(pending)
+
     history = build_history(
         conversation, config.history_limit, up_to_message=message, memory_enabled=config.memory_enabled
     )
@@ -84,16 +89,15 @@ def _generate_reply(message, conversation, business, config, provider):
         return Outcome("skipped", "no customer text to answer")
 
     knowledge = []
-    if config.rag_enabled and has_feature(business, "rag") and message.content.strip():
-        knowledge = retrieval.search(business, message.content)
-        if knowledge:
-            history[-1] = {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": format_knowledge(knowledge)},
-                    {"type": "text", "text": history[-1]["content"]},
-                ],
-            }
+    query = "\n".join(m.content for m in pending if m.content).strip()
+    if config.rag_enabled and has_feature(business, "rag") and query:
+        knowledge = retrieval.search(business, query)
+    if knowledge or media_blocks:
+        blocks = [{"type": "text", "text": format_knowledge(knowledge)}] if knowledge else []
+        history[-1] = {
+            "role": "user",
+            "content": [*blocks, *media_blocks, {"type": "text", "text": history[-1]["content"]}],
+        }
 
     system = build_system_prompt(config, business)
     tools = get_tools(business, config)

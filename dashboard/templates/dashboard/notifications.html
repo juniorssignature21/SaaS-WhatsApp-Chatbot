@@ -1,0 +1,19 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div><h1>Notifications</h1></div>
+  <form method="post">{% csrf_token %}<button class="secondary small">Mark all as read</button></form>
+</div>
+<div class="card flush">
+  <table>
+    {% for n in page %}
+      <tr class="clickable" data-href="{% url 'dashboard:notification_open' n.id %}">
+        <td>{% if not n.read_at %}<span class="badge warn">new</span> {% endif %}<a href="{% url 'dashboard:notification_open' n.id %}"><strong>{{ n.title }}</strong></a><div class="muted">{{ n.body }}</div></td>
+        <td class="muted" style="text-align:right">{{ n.created_at|timesince }} ago</td>
+      </tr>
+    {% empty %}<tr><td class="empty">You're all caught up.</td></tr>{% endfor %}
+  </table>
+</div>
+{% include "dashboard/_pagination.html" %}
+{% endblock %}

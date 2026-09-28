@@ -4,6 +4,15 @@ from .context import resolve_membership
 from .models import Role
 
 
+class IsHumanUser(BasePermission):
+    """Signed-in person (not an API key)."""
+
+    def has_permission(self, request, view):
+        from accounts.models import User
+
+        return isinstance(request.user, User) and request.user.is_authenticated
+
+
 class IsBusinessMember(BasePermission):
     """Require membership of the active business, with a minimum role.
 
