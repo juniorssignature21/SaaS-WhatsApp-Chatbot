@@ -1,0 +1,50 @@
+# Local/single-host stack: API, Celery workers, PostgreSQL + pgvector, Redis.
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://postgres:postgres@db:5432/whatsapp_ai_saas
+    REDIS_URL: redis://redis:6379/0
+  volumes:
+    - media:/app/media
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  web:
+    <<: *app
+    command: sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *app
+    # Separate queues so slow document processing never delays customer replies.
+    command: celery -A config worker -Q ai,whatsapp,celery -l info --concurrency 4
+
+  knowledge-worker:
+    <<: *app
+    command: celery -A config worker -Q knowledge -l info --concurrency 2
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: whatsapp_ai_saas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+
+volumes:
+  pgdata:
+  media:

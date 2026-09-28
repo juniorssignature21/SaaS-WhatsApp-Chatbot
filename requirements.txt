@@ -1,0 +1,11 @@
+Django>=5.2,<6
+djangorestframework>=3.15
+celery[redis]>=5.4
+psycopg[binary]>=3.2
+dj-database-url>=2.2
+anthropic>=1.8,<2
+cryptography>=42
+requests>=2.32
+pypdf>=5
+python-docx>=1.1
+gunicorn>=23

@@ -1,0 +1,11 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["accounts", "analytics", "billing", "chatbot", "common", "config", "conversations",
+                     "customers", "knowledge", "tenants", "tools", "whatsapp"]

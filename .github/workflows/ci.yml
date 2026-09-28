@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: whatsapp_ai_saas
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - name: Migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+      - name: Tests (SQLite)
+        run: python manage.py test
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+      - name: Tests (PostgreSQL + pgvector)
+        run: python manage.py test
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test_postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/whatsapp_ai_saas

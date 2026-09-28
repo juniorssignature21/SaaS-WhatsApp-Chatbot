@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+media/
+staticfiles/
+*.sqlite3
+.ruff_cache/
+.coverage
+htmlcov/
+dump.rdb

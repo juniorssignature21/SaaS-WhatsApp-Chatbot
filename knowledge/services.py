@@ -1,0 +1,53 @@
+import logging
+
+from django.conf import settings
+from django.db import transaction
+
+from .chunking import chunk_text
+from .embeddings import EmbeddingError, get_embedder
+from .loaders import LoaderError, load_file, load_url
+from .models import KnowledgeChunk, KnowledgeDocument
+
+logger = logging.getLogger(__name__)
+
+
+def extract_text(document):
+    Source = KnowledgeDocument.SourceType
+    if document.source_type == Source.FILE:
+        return load_file(document.file, document.file.name)
+    if document.source_type == Source.URL:
+        return load_url(document.source_url)
+    return document.raw_text
+
+
+def process_document(document):
+    """Extract -> clean -> chunk -> embed -> store. Replaces existing chunks."""
+    KnowledgeDocument.objects.filter(pk=document.pk).update(status=KnowledgeDocument.Status.PROCESSING, error="")
+    try:
+        text = extract_text(document)
+        chunks = chunk_text(text, settings.KNOWLEDGE_CHUNK_SIZE, settings.KNOWLEDGE_CHUNK_OVERLAP)
+        if not chunks:
+            raise LoaderError("No text could be extracted from this source.")
+        embedder = get_embedder()
+        vectors = embedder.embed_documents(chunks)
+    except (LoaderError, EmbeddingError, ValueError) as exc:
+        logger.info("Knowledge document %s failed: %s", document.pk, exc)
+        KnowledgeDocument.objects.filter(pk=document.pk).update(
+            status=KnowledgeDocument.Status.FAILED, error=str(exc)[:2000]
+        )
+        return False
+
+    with transaction.atomic():
+        KnowledgeChunk.objects.filter(document=document).delete()
+        KnowledgeChunk.objects.bulk_create([
+            KnowledgeChunk(
+                business_id=document.business_id, document=document, index=i,
+                content=content, embedding=vector, embedding_model=embedder.model_name,
+            )
+            for i, (content, vector) in enumerate(zip(chunks, vectors, strict=True))
+        ])
+        update = {"status": KnowledgeDocument.Status.READY, "chunk_count": len(chunks), "error": ""}
+        if document.source_type in {KnowledgeDocument.SourceType.FILE, KnowledgeDocument.SourceType.URL}:
+            update["raw_text"] = text
+        KnowledgeDocument.objects.filter(pk=document.pk).update(**update)
+    return True
